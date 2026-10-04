@@ -5,7 +5,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { CapCutDraft, cloneDraft, listDrafts, DRAFTS_DIR } from './core.js';
+import { CapCutDraft, cloneDraft, listDrafts, draftPath, DRAFTS_DIR } from './core.js';
 
 const US = 1e6;
 const open = new Map();                       // name -> live CapCutDraft (unsaved edits)
@@ -94,7 +94,7 @@ s.tool('capcut_save', 'Write session edits to disk (backs up .mcpbak, validates)
   wrap(async ({ draft, force }) => { const r = get(draft).save({ force: !!force }); open.delete(draft); return r; }));
 
 s.tool('capcut_discard', 'Drop unsaved session edits and reload the draft from disk.',
-  { draft: z.string() }, wrap(async ({ draft }) => { open.delete(draft); return { discarded: draft }; }));
+  { draft: z.string() }, wrap(async ({ draft }) => { draftPath(draft); open.delete(draft); return { discarded: draft }; }));
 
 const transport = new StdioServerTransport();
 await s.connect(transport);

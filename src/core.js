@@ -4,14 +4,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 // ---- where the drafts live (override with CAPCUT_DRAFTS_DIR) ----
 const STD_WIN = path.join(os.homedir(), 'AppData/Local/CapCut/User Data/Projects/com.lveditor.draft');
 const STD_MAC = path.join(os.homedir(), 'Movies/CapCut/User Data/Projects/com.lveditor.draft');
 const CANDIDATES = [
   process.env.CAPCUT_DRAFTS_DIR,
-  'D:/Capcut/CapCut Drafts',
   STD_WIN,
   STD_MAC,
 ].filter(Boolean);
@@ -19,19 +18,29 @@ const CANDIDATES = [
 export const DRAFTS_DIR =
   CANDIDATES.find(d => { try { return fs.statSync(d).isDirectory(); } catch { return false; } })
   || (process.platform === 'win32' ? STD_WIN : STD_MAC);
-// a draft known to contain video/text/audio layers, used to harvest templates
-const TEMPLATE_DRAFT = process.env.CAPCUT_TEMPLATE_DRAFT || '0723';
+// optional: a draft known to contain video/text/audio layers, used to harvest templates
+const TEMPLATE_DRAFT = process.env.CAPCUT_TEMPLATE_DRAFT;
+
+// every draft name from a tool call goes through here: plain folder name, resolved inside DRAFTS_DIR
+export function draftPath(name) {
+  if (typeof name !== 'string' || !name || name.includes('..') || /[\\/]/.test(name)) throw new Error(`invalid draft name: ${name}`);
+  const root = path.resolve(DRAFTS_DIR), p = path.resolve(root, name);
+  if (path.dirname(p) !== root) throw new Error(`invalid draft name: ${name} (resolves outside ${root})`);
+  return p;
+}
 
 const uid = () => crypto.randomUUID().toUpperCase();
 const clone = o => JSON.parse(JSON.stringify(o));
 const US = 1e6;
 
-function probeDur(file) {
-  try { return Math.round(parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "${file}"`).toString().trim()) * US); }
+// no shell: the file name is a single argv entry; path.resolve keeps it from starting with '-' (ffprobe option)
+const ffprobe = (args, file) => execFileSync('ffprobe', ['-v', 'error', ...args, path.resolve(file)], { encoding: 'utf8' }).trim();
+export function probeDur(file) {
+  try { return Math.round(parseFloat(ffprobe(['-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1'], file)) * US); }
   catch { return 5 * US; }
 }
-function probeWH(file) {
-  try { const [w, h] = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "${file}"`).toString().trim().split('x').map(Number); return { w: w || 1920, h: h || 1080 }; }
+export function probeWH(file) {
+  try { const [w, h] = ffprobe(['-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x'], file).split('x').map(Number); return { w: w || 1920, h: h || 1080 }; }
   catch { return { w: 1920, h: 1080 }; }
 }
 
@@ -79,7 +88,7 @@ function capcutRunning() {
 export class CapCutDraft {
   constructor(name) {
     this.name = name;
-    this.dir = path.join(DRAFTS_DIR, name);
+    this.dir = draftPath(name);
     if (!fs.existsSync(path.join(this.dir, 'draft_content.json'))) throw new Error(`draft not found: ${name} (in ${DRAFTS_DIR})`);
     this.content = JSON.parse(fs.readFileSync(path.join(this.dir, 'draft_content.json'), 'utf8'));
     this.metaPath = path.join(this.dir, 'draft_meta_info.json');
@@ -90,8 +99,8 @@ export class CapCutDraft {
     if (this._tpl) return this._tpl;
     let t = harvest(this.content);
     // fill any missing segment type from the template draft
-    if (!t.video || !t.text || !t.audio) {
-      try { const base = JSON.parse(fs.readFileSync(path.join(DRAFTS_DIR, TEMPLATE_DRAFT, 'draft_content.json'), 'utf8')); const bt = harvest(base);
+    if (TEMPLATE_DRAFT && (!t.video || !t.text || !t.audio)) {
+      try { const base = JSON.parse(fs.readFileSync(path.join(draftPath(TEMPLATE_DRAFT), 'draft_content.json'), 'utf8')); const bt = harvest(base);
         for (const k of ['video', 'audio', 'text', 'image']) if (!t[k] && bt[k]) t[k] = bt[k];
         for (const k of Object.keys(bt.tracks)) if (!t.tracks[k]) t.tracks[k] = bt.tracks[k];
       } catch {}
@@ -170,7 +179,9 @@ export class CapCutDraft {
   // ---------- text ----------
   addText(text, opts = {}) {
     const tpl = this.templates().text;
-    if (!tpl) throw new Error('no text template found. Set CAPCUT_TEMPLATE_DRAFT to a draft that contains a text layer.');
+    if (!tpl) throw new Error(TEMPLATE_DRAFT
+      ? `no text template found: neither this draft nor CAPCUT_TEMPLATE_DRAFT="${TEMPLATE_DRAFT}" contains a text layer (or that draft doesn't exist in ${DRAFTS_DIR}).`
+      : `no text template found: this draft has no text layer and CAPCUT_TEMPLATE_DRAFT is not set. In CapCut, add any text to a draft and close CapCut; then set CAPCUT_TEMPLATE_DRAFT to that draft's folder name (from capcut_list_drafts) in the "env" block of your MCP config, and restart the server.`);
     const mat = clone(tpl.mat); mat.id = uid();
     try {
       const content = JSON.parse(mat.content);
@@ -287,7 +298,7 @@ export class CapCutDraft {
 
 // clone a whole draft folder to a new name (valid scaffolding), optionally emptied
 export function cloneDraft(base, newName, { empty = false } = {}) {
-  const src = path.join(DRAFTS_DIR, base), dst = path.join(DRAFTS_DIR, newName);
+  const src = draftPath(base), dst = draftPath(newName);
   if (!fs.existsSync(path.join(src, 'draft_content.json'))) throw new Error(`base draft not found: ${base}`);
   if (fs.existsSync(dst)) throw new Error(`draft already exists: ${newName}`);
   fs.mkdirSync(dst, { recursive: true });
@@ -303,6 +314,7 @@ export function cloneDraft(base, newName, { empty = false } = {}) {
 }
 
 function hexToRgb(hex) { const h = hex.replace('#', ''); return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255]; }
-function deepMerge(t, s) { for (const k of Object.keys(s)) { if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) && t[k] && typeof t[k] === 'object') deepMerge(t[k], s[k]); else t[k] = s[k]; } return t; }
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']); // skipped at every level: prototype pollution
+function deepMerge(t, s) { for (const k of Object.keys(s)) { if (UNSAFE_KEYS.has(k)) continue; if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]) && t[k] && typeof t[k] === 'object') deepMerge(t[k], s[k]); else t[k] = s[k]; } return t; }
 
 export const _us = US;
