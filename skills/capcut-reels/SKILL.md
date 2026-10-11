@@ -1,72 +1,99 @@
 ---
 name: capcut-reels
 description: >-
-  Edit and assemble CapCut desktop drafts programmatically with Claude via the
-  capcut MCP server, and run the full short-video pipeline behind them: record →
-  captions (WhisperFlow) → motion graphics (HyperFrames) → probe/encode
-  (ffprobe/ffmpeg) → assemble, trim, split, caption a CapCut draft. Use when the
-  user wants to build, edit, re-cut, caption, or reorder a CapCut project (Reels,
-  Shorts, TikTok, YouTube, explainers) instead of doing it by hand in the app.
+  Plan, assemble, and edit CapCut desktop drafts with professional quality
+  using the capcut MCP server (tools named mcp__capcut__*). Covers short-form
+  vertical video (TikTok, Reels, Shorts) and longer YouTube edits: hooks,
+  pacing, punch-ins, J/L cuts, captions, text overlays, music, audio levels,
+  transitions and effects reused from the user's style library. Includes
+  playbooks for mood/text-over-music clips, football edits, painting process
+  videos, and startup/founder videos. Use this skill whenever the user wants
+  to build, cut, re-cut, caption, polish, or add effects to a CapCut project,
+  or asks how to make a video look more professional, even if they don't
+  mention CapCut by name.
 ---
 
-# CapCut reels pipeline
+# CapCut reels: professional editing
 
-This skill drives real CapCut desktop projects through the **capcut MCP** (tools named
-`mcp__capcut__*`) plus a small set of companion tools. It is the repeatable process behind a
-series of vertical real-estate reels; it generalizes to any short-form video assembled from
-clips + captions + motion graphics.
+You are editing as a seasoned short-form editor would, using the capcut MCP tools.
+The tools handle mechanics; this skill supplies the judgment. A technically valid
+draft is not the goal. A video someone watches to the end is.
 
-## Prerequisites
-- **capcut MCP** installed and connected (`claude mcp add capcut ...`). Tools appear as `mcp__capcut__*`.
-- **CapCut desktop** installed, with the drafts you want to edit saved locally.
-- **ffmpeg + ffprobe** on PATH (durations/resolutions; final encodes).
-- **HyperFrames** (optional) for motion-graphic overlays / full-screen animated scenes.
-- **WhisperFlow** (optional) for transcription → captions/subtitles.
+## Before you touch the draft
 
-## The one rule that matters most
-**Close CapCut on the draft before saving.** CapCut autosaves on a timer and will clobber your
-edits. `capcut_save` refuses when CapCut is running or the draft's `.locked` file exists — do not
-`force` past that unless you are certain the app is closed. All times at the tool boundary are in
-**seconds**.
+1. **Identify the format** and read its playbook:
+   - Text over music, no voice (car clips, "maturing is realizing..."): `references/formats/mood-text.md`
+   - Football (raw footage plus fun inserts): `references/formats/football.md`
+   - Painting process, timelapse, optional voiceover: `references/formats/painting.md`
+   - Startup, founder, or project explainers: `references/formats/startup.md`
+   - Anything else: use the closest playbook and the shared references.
+2. **Read the shared standards** you'll need:
+   - Cutting, pacing, hooks, punch-ins, b-roll, J/L cuts: `references/editing-craft.md`
+   - Captions and on-screen text: `references/captions-and-text.md`
+   - Music, voice, levels, sound effects: `references/audio.md`
+   - Transitions, effects, filters, text styles: `references/style-library.md`
+   - Aspect ratios, lengths, safe zones: `references/platform-specs.md`
+3. **Write a short edit plan** and show it to the user before building: the hook,
+   the sequence of beats with rough timings, text lines, music choice, and which
+   style-library effects you'll use. Editing is taste. Confirming the plan first
+   is cheaper than rebuilding a timeline.
 
 ## Workflow
 
-1. **Inspect.** `capcut_list_drafts` to find the draft; `capcut_read_timeline` to see canvas, fps,
-   tracks, and every segment (ids, media, start/duration in seconds, layer). Note the segment `id`s
-   you'll act on.
-2. **Start from a known-good base.** For a fresh build, `capcut_clone_draft` (optionally `empty:true`)
-   rather than authoring JSON from scratch — cloning is the only reliable way to get valid CapCut
-   structure. To edit in place, just operate on the existing draft.
-3. **Prepare media (companion tools, outside CapCut):**
-   - Motion graphics / animated scenes → **HyperFrames**, rendered to `.mp4` (or alpha `.mov`).
-   - Captions → **WhisperFlow** transcript; convert cue timings to seconds for `capcut_add_text`,
-     or burn them in HyperFrames if you want styled/animated captions.
-   - Use **ffprobe** to confirm each asset's duration before placing it so timings line up.
-4. **Assemble in the draft (session edits accumulate in memory):**
-   - `capcut_add_video` / `_image` / `_audio` — place media at `atSec` on a track.
-   - `capcut_add_text` — captions/titles (needs a text-template draft; see `CAPCUT_TEMPLATE_DRAFT`).
-   - `capcut_add_track` — separate layers for b-roll, captions, music.
-   - `capcut_move_segment` / `_trim_segment` / `_split_segment` / `_delete_segment` — re-cut and retime.
-   - `capcut_set_props` — scale, position, rotation, opacity, volume, speed, visibility.
-   - `capcut_raw_patch` — escape hatch for effects/transitions/rich text (inspect a template first;
-     these are best-effort and version-sensitive).
-5. **Validate, then save.** `capcut_validate` (overlaps, duplicate ids, missing media) → fix anything
-   flagged → **close CapCut** → `capcut_save` (writes a `.mcpbak` backup, atomic write, re-validates).
-   Use `capcut_discard` to drop an unsaved session.
-6. **Reopen in CapCut** to review, then export from the app (or encode the assembled pieces with ffmpeg).
+1. **Inspect.** `capcut_list_drafts`, then `capcut_read_timeline`. Note canvas,
+   fps, track layout, and segment ids. `read_timeline` reads from disk, so it does
+   not show unsaved session edits; keep your own running notes while editing.
+2. **Start from a known-good base.** For a new video, `capcut_clone_draft` from an
+   existing draft (use `empty: true` for a clean timeline). Never author draft
+   JSON from scratch; cloning is the only reliable way to get valid structure.
+3. **Probe media.** Check each file's duration and resolution with ffprobe before
+   placing it, so timings line up and nothing is placed past the end of a clip.
+4. **Build in layers**, in this order: main footage or A-roll, then voice and
+   music, then b-roll and inserts, then text and captions, then effects and
+   transitions last. Effects on a timeline that is still changing get broken.
+   - Media: `capcut_add_video`, `capcut_add_image`, `capcut_add_audio`
+   - Tracks: `capcut_add_track` (separate tracks for b-roll, text, music, voice)
+   - Cutting: `capcut_trim_segment`, `capcut_split_segment`, `capcut_delete_segment`, `capcut_move_segment`
+   - Framing and levels: `capcut_set_props` (scale, position, rotation, opacity, volume, speed, visibility)
+   - Text: `capcut_add_text` (needs `CAPCUT_TEMPLATE_DRAFT` set to a draft with a text layer)
+   - Effects and transitions: copied from the style library via `capcut_raw_patch`
+5. **Quality check** (below), then `capcut_validate`, fix anything flagged.
+6. **Save.** Confirm CapCut is closed, then `capcut_save`. Never pass `force: true`
+   unless the user explicitly asks for it; CapCut's autosave would overwrite the edit.
+7. **Hand off** with finishing notes (below). The user reviews and exports in CapCut.
 
-## Tips & gotchas
-- **Seconds in, seconds out.** The MCP converts to CapCut's microseconds internally — never pass µs.
-- **Layer order** is `render_index` / `track_render_index`: higher = on top. Captions and overlays go
-  above b-roll.
-- **Keep the `.mcpbak` backups.** CapCut's format changes between versions; a bad edit is recoverable
-  from the backup.
-- **`add_text` failing?** The default template draft won't exist on a new machine — set
-  `CAPCUT_TEMPLATE_DRAFT` to one of your own drafts that contains a text layer.
-- **Narration vs visuals mismatch** is normal when scenes are re-cut faster than the voiceover; keep
-  narration on its own audio track and trim/speed it to match.
+## Quality check before saving
 
-## What this skill does NOT do
-- It doesn't render the final export (do that in CapCut, or with ffmpeg on the assembled clips).
-- Effects, transitions, animations, and rich-text styling are **best-effort** via `capcut_raw_patch`.
-- It doesn't manage the media files themselves — point tools at real files that exist on disk.
+Go through every item. Fix what you can; list the rest in the finishing notes.
+
+- The first 1 to 2 seconds contain the strongest moment or line. No slow start.
+- No black gaps, no accidental overlaps, nothing runs past the end of the music.
+- Shot lengths vary; nothing feels like it was cut on a timer.
+- Text sits inside the safe zone, never covers a face or the key action, and stays
+  on screen long enough to read (see `captions-and-text.md`).
+- Voice is clearly louder than music; music ducks under speech; no clipping.
+- One consistent look: same caption style, same filter, transitions from the
+  style library only, and no more of them than the playbook allows.
+- The ending lands: a payoff, a call to action, or a clean loop back to the start.
+- Length matches the platform and format target.
+
+## Finishing notes
+
+End every edit with a short list for the user covering what to check or finish by
+hand in CapCut: effects to preview, keyframe animations, colour tweaks, music
+licensing, and anything you skipped because the tools can't do it reliably.
+Being clear about this is part of professional delivery. Don't attempt edits that
+risk corrupting the draft just to avoid writing a note.
+
+## Known tool limits
+
+- Effects, transitions, animations, and rich text are best-effort through
+  `capcut_raw_patch`. Only copy them from the user's style library draft; never
+  invent effect ids, because they differ between CapCut versions.
+- Speed changes: the server may set source duration equal to timeline duration on
+  trimmed or split clips. For sped-up clips (timelapses especially), verify timing
+  in CapCut and mention it in the finishing notes until this is fixed.
+- Times at the tool boundary are in seconds. Never pass microseconds.
+- Higher `render_index` / `track_render_index` draws on top. Text above b-roll
+  above main footage.
+- Keep the `.mcpbak` backups; a bad edit is recoverable from them.
