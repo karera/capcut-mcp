@@ -54,6 +54,37 @@ test('real clip with shell syntax in its name is probed correctly', { skip: !has
   assert.deepEqual(fs.readdirSync(work), [path.basename(clip)]);
 });
 
+test('audio track labelled "music" is used as the audio template', () => {
+  // template draft shaped like CapCut library music: audio track, material type 'music'
+  const tpl = { tracks: [{ id: 'T', type: 'audio', segments: [{ id: 'S', material_id: 'M', extra_material_refs: [], target_timerange: { start: 0, duration: 1e6 }, source_timerange: { start: 0, duration: 1e6 } }] }],
+    materials: { audios: [{ id: 'M', type: 'music', path: 'x.mp3' }] }, duration: 1e6 };
+  fs.mkdirSync(path.join(drafts, 'music'));
+  fs.writeFileSync(path.join(drafts, 'music', 'draft_content.json'), JSON.stringify(tpl));
+  const song = path.join(root, 'song.mp3');
+  fs.writeFileSync(song, '');
+  const d = new CapCutDraft('music');                  // its own music track is the template
+  assert.equal(d.templates().audio.mat.type, 'music'); // harvested under 'audio'
+  const { segmentId } = d.addAudio(song, { atUs: 0, durUs: 2e6 });
+  const track = d.content.tracks.find(tr => tr.segments.some(s => s.id === segmentId));
+  assert.equal(track.type, 'audio');
+  assert.equal(d.content.materials.audios.at(-1).type, 'audio');
+  assert.equal(d.content.materials.audios.at(-1).path, song.replace(/\\/g, '/'));
+});
+
+test('cloned draft gets its own name, id and folder in the meta file, and no lock', () => {
+  const meta = { draft_name: 'd1', draft_id: 'OLD-ID', draft_fold_path: 'somewhere/d1', other: 1 };
+  fs.writeFileSync(path.join(drafts, 'd1', 'draft_meta_info.json'), JSON.stringify(meta));
+  fs.writeFileSync(path.join(drafts, 'd1', '.locked'), '');
+  const { dir } = cloneDraft('d1', 'd1 copy');
+  const m = JSON.parse(fs.readFileSync(path.join(dir, 'draft_meta_info.json'), 'utf8'));
+  assert.equal(m.draft_name, 'd1 copy');
+  assert.notEqual(m.draft_id, 'OLD-ID');
+  assert.equal(m.draft_fold_path, dir.replace(/\\/g, '/'));
+  assert.equal(m.other, 1);
+  assert.equal(fs.existsSync(path.join(dir, '.locked')), false);
+  fs.rmSync(path.join(drafts, 'd1', '.locked'));
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');
