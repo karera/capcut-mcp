@@ -290,7 +290,7 @@ export class CapCutDraft {
     if (overlaps) issues.push(`${overlaps} overlapping segment(s) on a single track`);
     if (riClash) issues.push(`${riClash} overlapping segment pair(s) share a render_index (ambiguous layer order)`);
     else if (ris.size < [...ris.values()].reduce((n, a) => n + a.length, 0)) warnings.push('some non-overlapping segments share a render_index (harmless; CapCut does this for sequential clips)');
-    for (const s of (c.materials?.videos || [])) if (s.path && !fs.existsSync(s.path)) issues.push(`missing media file: ${s.path}`);
+    for (const s of [...(c.materials?.videos || []), ...(c.materials?.audios || [])]) if (s.path && !fs.existsSync(s.path)) issues.push(`missing media file: ${s.path}`);
     return { ok: issues.length === 0, issues, warnings };
   }
 

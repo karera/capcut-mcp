@@ -140,6 +140,16 @@ test('text segments with no source range can be trimmed and split', () => {
   assert.equal(seg(d, right).source_timerange, null);
 });
 
+test('validate reports missing audio files as well as video', () => {
+  const d = speedDraft('missing-media');
+  d.content.materials.videos[0].path = path.join(root, 'gone.mp4');
+  d.content.materials.audios = [{ id: 'A', type: 'music', path: path.join(root, 'gone.mp3') }, { id: 'B', type: 'music', path: '' }];
+  const { ok, issues } = d.validate();
+  assert.equal(ok, false);
+  assert.deepEqual(issues.filter(i => i.startsWith('missing media')).length, 2);
+  assert.ok(issues.some(i => i.includes('gone.mp3')));
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');
