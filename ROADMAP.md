@@ -71,8 +71,13 @@ Run a security audit before running anything from them.
       Local audio: `extract_music`, no library `music_id`.
 - [x] Save every timeline mirror (`template-2.tmp`, `Timelines/<id>/...`), so
       in-place edits aren't ignored by builds that read the nested copy.
+- [x] `validate` false alarms: it flagged CapCut's own habits (identical duplicate
+      materials, `render_index` shared across overlapping tracks) as errors. Now a
+      warning and not checked, respectively; every real draft validates clean.
 - [ ] Re-test in CapCut after both: add a new local video and edit a draft in place
-      (on a copy).
+      (on a copy). (Written 2026-10-11 to `0924 mcp-test`: `IMG_E0505.MOV` + an
+      "in-place edit" caption at 54.6 s, all 4 timeline copies updated. Waiting on the
+      user's check in CapCut.)
 
 ## Phase 2: smart cutting and captions
 

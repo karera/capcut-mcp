@@ -212,6 +212,21 @@ test('save writes every timeline mirror CapCut keeps, and nothing else', () => {
   assert.equal(fs.readFileSync(path.join(dir, 'template.tmp'), 'utf8'), 'old');          // not a mirror
 });
 
+test('validate accepts what CapCut itself writes, flags real conflicts', () => {
+  const d = speedDraft('capcut-habits');
+  const v = d.content.materials.videos[0];
+  d.content.materials.videos.push({ ...v });                                  // identical copy, same id
+  d.content.tracks.push({ id: 'TA', type: 'audio', segments: [{ id: 'au', material_id: 'X', render_index: 0, target_timerange: { start: 0, duration: 5e6 }, source_timerange: { start: 0, duration: 5e6 } }] });
+  seg(d, 'clip').render_index = 0;                                            // overlaps the audio, same render_index
+  let r = d.validate();
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.ok(r.warnings.some(w => w.includes('identical duplicate')));
+  d.content.materials.videos.push({ ...v, path: 'other.mp4' });               // same id, different material
+  r = d.validate();
+  assert.equal(r.ok, false);
+  assert.ok(r.issues.some(i => i.includes('used by different materials')));
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');

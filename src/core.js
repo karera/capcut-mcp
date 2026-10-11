@@ -306,22 +306,22 @@ export class CapCutDraft {
   // ---------- validate ----------
   validate() {
     const c = this.content; const issues = [], warnings = [];
-    const ids = new Set(); let dupMat = 0;
-    for (const k of Object.keys(c.materials || {})) if (Array.isArray(c.materials[k])) for (const m of c.materials[k]) { if (ids.has(m.id)) dupMat++; ids.add(m.id); }
-    if (dupMat) issues.push(`${dupMat} duplicate material id(s)`);
+    // CapCut itself saves identical copies of a material under one id; only differing copies are ambiguous
+    const byId = new Map(); let dupSame = 0, dupDiff = 0;
+    for (const k of Object.keys(c.materials || {})) if (Array.isArray(c.materials[k])) for (const m of c.materials[k]) {
+      if (!m || !m.id) continue;
+      const j = JSON.stringify(m);
+      if (byId.has(m.id)) byId.get(m.id) === j ? dupSame++ : dupDiff++; else byId.set(m.id, j);
+    }
+    if (dupDiff) issues.push(`${dupDiff} material id(s) used by different materials`);
+    if (dupSame) warnings.push(`${dupSame} identical duplicate material(s) (harmless; CapCut writes these)`);
+    // layer order is track_render_index; CapCut reuses render_index across overlapping tracks, so it isn't checked
     let overlaps = 0;
-    const ris = new Map();                                   // render_index -> [ {start,end} ] across all tracks
     for (const tr of c.tracks) {
       const ss = [...(tr.segments || [])].sort((a, b) => a.target_timerange.start - b.target_timerange.start);
-      for (const s of ss) { const e = { a: s.target_timerange.start, b: s.target_timerange.start + s.target_timerange.duration }; (ris.get(s.render_index) || ris.set(s.render_index, []).get(s.render_index)).push(e); }
       for (let i = 1; i < ss.length; i++) if (ss[i].target_timerange.start < ss[i - 1].target_timerange.start + ss[i - 1].target_timerange.duration) overlaps++;
     }
-    // a duplicate render_index only matters if those two segments actually overlap in time
-    let riClash = 0;
-    for (const arr of ris.values()) for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) if (arr[i].a < arr[j].b && arr[j].a < arr[i].b) riClash++;
     if (overlaps) issues.push(`${overlaps} overlapping segment(s) on a single track`);
-    if (riClash) issues.push(`${riClash} overlapping segment pair(s) share a render_index (ambiguous layer order)`);
-    else if (ris.size < [...ris.values()].reduce((n, a) => n + a.length, 0)) warnings.push('some non-overlapping segments share a render_index (harmless; CapCut does this for sequential clips)');
     for (const s of [...(c.materials?.videos || []), ...(c.materials?.audios || [])]) if (s.path && !fs.existsSync(s.path)) issues.push(`missing media file: ${s.path}`);
     const vw = versionWarning(c); if (vw) warnings.push(vw);
     return { ok: issues.length === 0, issues, warnings };
