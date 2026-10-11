@@ -8,6 +8,23 @@ re-prompting Claude.
 Platform: Windows, CapCut desktop. Check the CapCut version before each phase; the
 draft format changes between versions.
 
+Target experience: the "Use" section of capcut-edit's README, on Windows. Drop a raw
+take (or say which CapCut project you already cut) in a folder, describe the edit,
+answer a few intake questions, approve the cut list and the graphics sheet, then
+reopen CapCut and the project is in the list.
+
+## Decisions
+
+- Our MCP server writes the CapCut project (clone from templates, tested against this
+  machine's CapCut). capcut-cli is a reference only: audit it and borrow its format
+  knowledge (keyframes, alpha clips, text styling); don't depend on it.
+- Rendering (graphics, looks, previews, check sheets) is Python with pillow, numpy and
+  ffmpeg. Writing CapCut drafts stays in Node.
+- Graphics behind the head stay in "Later" for now, even though the target prompt
+  ("my best four videos orbiting my head") needs them.
+- Style from another creator: local video files only, no downloading from links
+  (platform terms usually forbid it).
+
 ## Reference projects (read for ideas, don't install)
 
 Kept outside this repo in `E:\reference\` (only `capcut-edit` is cloned so far):
@@ -34,9 +51,18 @@ Run a security audit before running anything from them.
 - [ ] `read_timeline` should be able to show unsaved session edits.
 - [ ] `validate` should also check that audio files exist.
 - [ ] Warn when the CapCut version differs from the tested one.
-- [ ] Test end to end on a copy of a real project.
+- [ ] Test end to end on a copy of a real project. (Done on disk: CapCut opened and
+      re-saved `0924 mcp-test` with every edit intact. Waiting on the user's playback check.)
+- [ ] Audit capcut-cli (read only): what it knows about the draft format that we
+      don't (keyframes, alpha clips, text styling). Write the findings into the skill.
 
 ## Phase 2: smart cutting and captions
+
+- [ ] Intake questions in the skill: raw or pre-cut, what it should feel like (ideally
+      a video link or file), 4K export available, which CapCut sounds they use,
+      graphics behind or in front.
+- [ ] Pre-cut path: rebuild from the cut points of a project the user cut in CapCut,
+      optionally matched to a 4K export of the same cut.
 
 - [ ] Transcription with word-level timestamps (faster-whisper works on Windows).
 - [ ] Cut on words: remove pauses, filler words, and retakes, keeping natural
@@ -48,7 +74,8 @@ Run a security audit before running anything from them.
 ## Phase 3: graphics
 
 - [ ] Test first: can CapCut on Windows show a see-through (transparent) overlay
-      clip? Find which video format works. Fallback: chroma key or full-frame scenes.
+      clip? Find which video format works; try ProRes 4444 with alpha first (it works
+      in capcut-edit on Mac). Fallback: chroma key or full-frame scenes.
 - [ ] Choose the graphics tool: HyperFrames if it works on Windows, otherwise
       Remotion or Python-drawn graphics.
 - [ ] Graphics as separate clips on tracks above the footage: cards, step labels,
@@ -57,13 +84,17 @@ Run a security audit before running anything from them.
       no-go zones drawn in, approved before anything is rendered.
 - [ ] Locked design system: fonts, colours, card style, label style, saved in the
       skill so every video in a series matches.
+- [ ] Render every layer as its own file from one layer plan (name, word, in, out,
+      layer, sound), so a sound swap or a new opening re-renders only that piece.
+- [ ] A `FINAL.mp4` preview alongside the CapCut project.
 
 ## Phase 4: polish
 
 - [ ] Breathing zooms and punch-ins as eased keyframes.
 - [ ] Look changes on trigger words (for example warmer on "aesthetic").
 - [ ] Sounds from the user's own CapCut library, plus a sound audition clip.
-- [ ] Learn style from 5 to 10 example videos, asking questions instead of guessing.
+- [ ] Learn style from 5 to 10 example videos (the user's own or another creator's,
+      as local files), asking questions instead of guessing.
 - [ ] Frame check before handover: screenshot frames, fix text over faces,
       safe-zone problems, and timing.
 - [ ] A README per edit: what happens on which word, what's editable.
