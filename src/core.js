@@ -57,7 +57,8 @@ function harvest(content) {
     if (!t.tracks[track.type]) { const tk = clone(track); tk.segments = []; t.tracks[track.type] = tk; }
     for (const seg of (track.segments || [])) {
       const [, mat] = findMat(content, seg.material_id);
-      const type = mat && mat.type ? mat.type : track.type;
+      // anything on an audio track is an audio template (CapCut labels library tracks 'music', SFX 'sound', etc.)
+      const type = track.type === 'audio' ? 'audio' : (mat && mat.type ? mat.type : track.type);
       if (t[type]) continue;
       if (!mat) continue;
       const refs = (seg.extra_material_refs || []).map(id => { const [k, m] = findMat(content, id); return m ? { k, m: clone(m) } : null; }).filter(Boolean);
@@ -302,7 +303,14 @@ export function cloneDraft(base, newName, { empty = false } = {}) {
   if (!fs.existsSync(path.join(src, 'draft_content.json'))) throw new Error(`base draft not found: ${base}`);
   if (fs.existsSync(dst)) throw new Error(`draft already exists: ${newName}`);
   fs.mkdirSync(dst, { recursive: true });
-  for (const fn of fs.readdirSync(src)) { const s = path.join(src, fn); try { if (fs.statSync(s).isFile()) fs.copyFileSync(s, path.join(dst, fn)); } catch {} }
+  for (const fn of fs.readdirSync(src)) { if (fn === '.locked') continue; const s = path.join(src, fn); try { if (fs.statSync(s).isFile()) fs.copyFileSync(s, path.join(dst, fn)); } catch {} }
+  // the meta file is the draft's identity in CapCut: give the copy its own name, id and folder
+  const metaPath = path.join(dst, 'draft_meta_info.json');
+  if (fs.existsSync(metaPath)) {
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    Object.assign(meta, { draft_name: newName, draft_id: uid(), draft_fold_path: dst.replace(/\\/g, '/') });
+    fs.writeFileSync(metaPath, JSON.stringify(meta));
+  }
   if (empty) {
     const d = new CapCutDraft(newName);
     for (const k of Object.keys(d.content.materials)) if (Array.isArray(d.content.materials[k])) d.content.materials[k] = [];
