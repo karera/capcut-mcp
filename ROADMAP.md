@@ -66,7 +66,7 @@ Run a security audit before running anything from them.
       (`skills/capcut-reels/references/draft-format.md`. Safe to read: MIT, no runtime
       dependencies, commands run without a shell. It confirmed the speed rule and
       found the two gaps below.)
-- [ ] Register added media in `draft_meta_info.json` (`draft_materials` +
+- [x] Register added media in `draft_meta_info.json` (`draft_materials` +
       `local_material_id`); without it CapCut 9.1+ shows new clips as inaccessible.
       Local audio: `extract_music`, no library `music_id`.
 - [ ] Save every timeline mirror (`template-2.tmp`, `Timelines/<id>/...`), so

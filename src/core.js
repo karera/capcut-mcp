@@ -158,7 +158,7 @@ export class CapCutDraft {
   // ---------- add media (video/image/audio) ----------
   _addMedia(kind, file, opts) {
     if (!fs.existsSync(file)) throw new Error(`file not found: ${file}`);
-    const type = kind === 'audio' ? 'audio' : (kind === 'image' ? 'photo' : 'video');
+    const type = kind === 'audio' ? 'extract_music' : (kind === 'image' ? 'photo' : 'video'); // what CapCut writes for local files
     const tplType = kind === 'image' ? (this.templates().image ? 'image' : 'video') : kind;
     const tpl = this.templates()[tplType] || this.templates().video;
     if (!tpl) throw new Error(`no ${kind} template available`);
@@ -168,7 +168,10 @@ export class CapCutDraft {
     const mat = clone(tpl.mat); mat.id = uid(); mat.path = file.replace(/\\/g, '/'); mat.material_name = path.basename(file); mat.type = type;
     if (kind !== 'audio') { const { w, h } = probeWH(file); mat.width = w; mat.height = h; }
     if (kind !== 'image') mat.duration = mediaDur;        // images keep CapCut's long still-image duration
-    ['local_material_id', 'origin_material_id', 'local_id', 'request_id', 'aigc_history_id', 'aigc_item_id'].forEach(k => { if (k in mat) mat[k] = ''; });
+    // template ids belong to the template's media (a library track's music_id would make CapCut play that track)
+    ['origin_material_id', 'local_id', 'request_id', 'aigc_history_id', 'aigc_item_id', 'music_id'].forEach(k => { if (k in mat) mat[k] = ''; });
+    if (kind === 'audio') { if ('name' in mat) mat.name = path.basename(file); if ('category_name' in mat) mat.category_name = 'local'; }
+    mat.local_material_id = this._register(file, kind === 'audio' ? 'music' : type, mat);
     const matKey = kind === 'audio' ? 'audios' : (kind === 'image' ? 'videos' : 'videos'); // CapCut stores images in videos[]
     this._mats(matKey).push(mat);
     const refs = tpl.refs.map(({ k, m }) => { const c = clone(m); c.id = uid(); this._mats(k).push(c); return c.id; });
@@ -184,6 +187,26 @@ export class CapCutDraft {
     track.segments.push(seg);
     this.content.duration = Math.max(this.content.duration || 0, at + dur);
     return { segmentId: seg.id, endUs: at + dur };
+  }
+  // CapCut 9.1+ resolves a local clip through draft_meta_info.json -> draft_materials (group type 0);
+  // the material's local_material_id is that entry's id. Reuse an entry for the same file, else add one.
+  _register(file, metetype, mat) {
+    if (!this.meta) return '';
+    const key = p => { const r = path.resolve(p); return process.platform === 'win32' ? r.toLowerCase() : r; };
+    if (!Array.isArray(this.meta.draft_materials)) this.meta.draft_materials = [];
+    let group = this.meta.draft_materials.find(g => g && g.type === 0);
+    if (!group) { group = { type: 0, value: [] }; this.meta.draft_materials.push(group); }
+    if (!Array.isArray(group.value)) group.value = [];
+    for (const g of this.meta.draft_materials) for (const e of (g && g.value) || []) if (e && e.id && typeof e.file_Path === 'string' && key(e.file_Path) === key(file)) return e.id;
+    const music = metetype === 'music', entry = {
+      ai_group_type: '', create_time: -1, duration: metetype === 'photo' ? 5 * US : mat.duration, enter_from: 0,
+      extra_info: path.basename(file), file_Path: file.replace(/\\/g, '/'), height: music ? 0 : mat.height || 0,
+      id: crypto.randomUUID(), import_time: -1, import_time_ms: -1, item_source: 1, material_color_tag: '', md5: '',
+      metetype, roughcut_time_range: { duration: -1, start: -1 }, sub_time_range: { duration: -1, start: -1 },
+      type: 0, width: music ? 0 : mat.width || 0,
+    };
+    group.value.push(entry);
+    return entry.id;
   }
   addVideo(file, opts = {}) { return this._addMedia('video', file, opts); }
   addImage(file, opts = {}) { return this._addMedia('image', file, opts); }

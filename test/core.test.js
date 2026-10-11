@@ -67,7 +67,7 @@ test('audio track labelled "music" is used as the audio template', () => {
   const { segmentId } = d.addAudio(song, { atUs: 0, durUs: 2e6 });
   const track = d.content.tracks.find(tr => tr.segments.some(s => s.id === segmentId));
   assert.equal(track.type, 'audio');
-  assert.equal(d.content.materials.audios.at(-1).type, 'audio');
+  assert.equal(d.content.materials.audios.at(-1).type, 'extract_music');
   assert.equal(d.content.materials.audios.at(-1).path, song.replace(/\\/g, '/'));
 });
 
@@ -161,6 +161,36 @@ test('a draft saved by an untested CapCut version gets a warning', () => {
   assert.match(d.timeline().versionWarning, /CapCut 9\.6\.0/);
   d.content.last_modified_platform.app_version = '9.5.0'; d.content.new_version = '190.0.0';
   assert.equal(warned(), true);
+});
+
+test('added media is registered in draft_meta_info.json and linked by local_material_id', () => {
+  const d = speedDraft('register');
+  const [a, b, song] = ['a.mp4', 'b.mp4', 'song.mp3'].map(n => { const f = path.join(root, 'reg-' + n); fs.writeFileSync(f, ''); return f; });
+  d.content.materials.audios = [{ id: 'LIB', type: 'music', music_id: '7647', name: 'Library song', category_name: 'music', path: 'lib.mp3' }];
+  d.content.tracks.push({ id: 'TA', type: 'audio', segments: [{ id: 'm', material_id: 'LIB', speed: 1, extra_material_refs: [], target_timerange: { start: 0, duration: 1e6 }, source_timerange: { start: 0, duration: 1e6 } }] });
+  d._tpl = null;
+  d.meta = { draft_materials: [{ type: 0, value: [{ id: 'existing-a', file_Path: a.replace(/\\/g, '/'), metetype: 'video' }] }, { type: 1, value: [] }] };
+
+  const mat = segId => { const s = seg(d, segId); return [...d.content.materials.videos, ...d.content.materials.audios].find(m => m.id === s.material_id); };
+  assert.equal(mat(d.addVideo(a, { durUs: 1e6 }).segmentId).local_material_id, 'existing-a');   // same file -> reuse
+
+  const vb = mat(d.addVideo(b, { durUs: 1e6 }).segmentId);
+  const eb = d.meta.draft_materials[0].value.find(e => e.id === vb.local_material_id);
+  assert.equal(eb.file_Path, b.replace(/\\/g, '/'));
+  assert.equal(eb.metetype, 'video');
+
+  const au = mat(d.addAudio(song, { durUs: 1e6 }).segmentId);
+  assert.equal(au.type, 'extract_music');
+  assert.equal(au.music_id, '');                       // not the library track any more
+  assert.equal(au.category_name, 'local');
+  const es = d.meta.draft_materials[0].value.find(e => e.id === au.local_material_id);
+  assert.equal(es.metetype, 'music');
+  assert.equal(es.width, 0);
+  assert.equal(d.meta.draft_materials[0].value.length, 3);
+
+  d.save({ force: true });                             // meta is written with the draft
+  const onDisk = JSON.parse(fs.readFileSync(path.join(drafts, 'register', 'draft_meta_info.json'), 'utf8'));
+  assert.equal(onDisk.draft_materials[0].value.length, 3);
 });
 
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
