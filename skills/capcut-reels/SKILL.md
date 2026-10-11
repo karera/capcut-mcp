@@ -95,6 +95,9 @@ risk corrupting the draft just to avoid writing a note.
   `durSec` is always the length on the timeline. The rule (footage = timeline length x
   speed) hasn't been checked against a clip sped up in CapCut itself yet, so verify
   timelapse timing in CapCut and mention it in the finishing notes.
+- If `read_timeline` or `validate` reports a `versionWarning`, the draft was saved by a
+  CapCut version this server hasn't been tested with. Tell the user, edit only a copy,
+  and ask them to check it in CapCut before doing more.
 - Times at the tool boundary are in seconds. Never pass microseconds.
 - Higher `render_index` / `track_render_index` draws on top. Text above b-roll
   above main footage.

@@ -55,7 +55,8 @@ Run a security audit before running anything from them.
       flag in the result; `fromDisk: true` for the saved file. `test/server.test.js`
       now drives the real server over MCP, ready for future tool tests.)
 - [x] `validate` should also check that audio files exist.
-- [ ] Warn when the CapCut version differs from the tested one.
+- [x] Warn when the CapCut version differs from the tested one. (Tested: CapCut 9.5.0,
+      draft format 187.0.0, in `TESTED` in `src/core.js`; bump it after re-testing.)
 - [ ] Test end to end on a copy of a real project. (Done on disk: CapCut opened and
       re-saved `0924 mcp-test` with every edit intact. Waiting on the user's playback check.)
 - [ ] Audit capcut-cli (read only): what it knows about the draft format that we

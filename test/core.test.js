@@ -150,6 +150,19 @@ test('validate reports missing audio files as well as video', () => {
   assert.ok(issues.some(i => i.includes('gone.mp3')));
 });
 
+test('a draft saved by an untested CapCut version gets a warning', () => {
+  const d = speedDraft('versions');
+  const warned = () => d.validate().warnings.some(w => w.includes('tested with CapCut'));
+  d.content.last_modified_platform = { app_version: '9.5.0' }; d.content.new_version = '187.0.0';
+  assert.equal(warned(), false);
+  assert.equal(d.timeline().versionWarning, undefined);
+  d.content.last_modified_platform.app_version = '9.6.0';
+  assert.equal(warned(), true);
+  assert.match(d.timeline().versionWarning, /CapCut 9\.6\.0/);
+  d.content.last_modified_platform.app_version = '9.5.0'; d.content.new_version = '190.0.0';
+  assert.equal(warned(), true);
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');

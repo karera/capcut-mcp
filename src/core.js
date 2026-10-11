@@ -21,6 +21,14 @@ export const DRAFTS_DIR =
 // optional: a draft known to contain video/text/audio layers, used to harvest templates
 const TEMPLATE_DRAFT = process.env.CAPCUT_TEMPLATE_DRAFT;
 
+// the CapCut desktop (Windows) this server was last tested against; bump after re-testing a new version
+export const TESTED = { app: '9.5.0', format: '187.0.0' };
+function versionWarning(c) {
+  const app = c.last_modified_platform?.app_version, format = c.new_version;
+  if ((app && app !== TESTED.app) || (format && format !== TESTED.format))
+    return `draft was last saved by CapCut ${app || '?'} (format ${format || '?'}); this server was tested with CapCut ${TESTED.app} (format ${TESTED.format}). Edit a copy and check it in CapCut before trusting the result.`;
+}
+
 // every draft name from a tool call goes through here: plain folder name, resolved inside DRAFTS_DIR
 export function draftPath(name) {
   if (typeof name !== 'string' || !name || name.includes('..') || /[\\/]/.test(name)) throw new Error(`invalid draft name: ${name}`);
@@ -118,6 +126,7 @@ export class CapCutDraft {
       name: this.name, durationSec: +(c.duration / US).toFixed(3), fps: c.fps,
       canvas: c.canvas_config && { w: c.canvas_config.width, h: c.canvas_config.height, ratio: c.canvas_config.ratio },
       locked: fs.existsSync(path.join(this.dir, '.locked')), capcutRunning: capcutRunning(),
+      capcutVersion: c.last_modified_platform?.app_version, versionWarning: versionWarning(c),
       tracks: (c.tracks || []).map((tr, ti) => ({
         index: ti, type: tr.type, name: tr.name, segments: (tr.segments || []).map(s => {
           const [, m] = findMat(c, s.material_id);
@@ -291,6 +300,7 @@ export class CapCutDraft {
     if (riClash) issues.push(`${riClash} overlapping segment pair(s) share a render_index (ambiguous layer order)`);
     else if (ris.size < [...ris.values()].reduce((n, a) => n + a.length, 0)) warnings.push('some non-overlapping segments share a render_index (harmless; CapCut does this for sequential clips)');
     for (const s of [...(c.materials?.videos || []), ...(c.materials?.audios || [])]) if (s.path && !fs.existsSync(s.path)) issues.push(`missing media file: ${s.path}`);
+    const vw = versionWarning(c); if (vw) warnings.push(vw);
     return { ok: issues.length === 0, issues, warnings };
   }
 
