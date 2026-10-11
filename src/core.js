@@ -334,11 +334,18 @@ export class CapCutDraft {
       if (capcutRunning()) throw new Error('CapCut is running. Close it before saving, or pass force:true.');
     }
     const v = this.validate();
-    const cPath = path.join(this.dir, 'draft_content.json');
-    try { fs.copyFileSync(cPath, cPath + '.mcpbak'); } catch {}
-    const tmp = cPath + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(this.content)); fs.renameSync(tmp, cPath);
+    // CapCut keeps mirrors of the timeline (template-2.tmp, Timelines/<id>/...); some builds read only the
+    // nested copy, so every mirror that exists gets the same content. draft_content.json is always written.
+    const nested = path.join(this.dir, 'Timelines', String(this.content.id || ''));
+    const mirrors = [path.join(this.dir, 'template-2.tmp'), path.join(nested, 'draft_content.json'), path.join(nested, 'template-2.tmp')].filter(f => this.content.id && fs.existsSync(f));
+    const json = JSON.stringify(this.content), written = [];
+    for (const f of [path.join(this.dir, 'draft_content.json'), ...mirrors]) {
+      try { fs.copyFileSync(f, f + '.mcpbak'); } catch {}
+      fs.writeFileSync(f + '.mcptmp', json); fs.renameSync(f + '.mcptmp', f);
+      written.push(path.relative(this.dir, f));
+    }
     if (this.meta) { try { fs.copyFileSync(this.metaPath, this.metaPath + '.mcpbak'); } catch {} const mt = this.metaPath + '.tmp'; fs.writeFileSync(mt, JSON.stringify(this.meta)); fs.renameSync(mt, this.metaPath); }
-    return { saved: this.name, durationSec: +(this.content.duration / US).toFixed(3), validation: v };
+    return { saved: this.name, written, durationSec: +(this.content.duration / US).toFixed(3), validation: v };
   }
 }
 

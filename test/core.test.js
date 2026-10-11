@@ -193,6 +193,25 @@ test('added media is registered in draft_meta_info.json and linked by local_mate
   assert.equal(onDisk.draft_materials[0].value.length, 3);
 });
 
+test('save writes every timeline mirror CapCut keeps, and nothing else', () => {
+  const d = speedDraft('mirrors');
+  const dir = path.join(drafts, 'mirrors');
+  d.content.id = 'TL-1';
+  const nested = path.join(dir, 'Timelines', 'TL-1'), other = path.join(dir, 'Timelines', 'TL-OTHER');
+  fs.mkdirSync(nested, { recursive: true }); fs.mkdirSync(other, { recursive: true });
+  for (const f of [path.join(dir, 'template-2.tmp'), path.join(nested, 'draft_content.json'), path.join(nested, 'template-2.tmp'), path.join(other, 'draft_content.json'), path.join(dir, 'template.tmp')]) fs.writeFileSync(f, 'old');
+
+  d.trimSegment('clip', { durUs: 7e6 });
+  const { written } = d.save({ force: true });
+  assert.equal(written.length, 4);
+  for (const f of [path.join(dir, 'draft_content.json'), path.join(dir, 'template-2.tmp'), path.join(nested, 'draft_content.json'), path.join(nested, 'template-2.tmp')]) {
+    assert.equal(JSON.parse(fs.readFileSync(f, 'utf8')).duration, 7e6, f);
+    assert.equal(fs.readFileSync(f + '.mcpbak', 'utf8') !== '', true);
+  }
+  assert.equal(fs.readFileSync(path.join(other, 'draft_content.json'), 'utf8'), 'old');  // other timelines untouched
+  assert.equal(fs.readFileSync(path.join(dir, 'template.tmp'), 'utf8'), 'old');          // not a mirror
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');

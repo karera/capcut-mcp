@@ -69,7 +69,7 @@ Run a security audit before running anything from them.
 - [x] Register added media in `draft_meta_info.json` (`draft_materials` +
       `local_material_id`); without it CapCut 9.1+ shows new clips as inaccessible.
       Local audio: `extract_music`, no library `music_id`.
-- [ ] Save every timeline mirror (`template-2.tmp`, `Timelines/<id>/...`), so
+- [x] Save every timeline mirror (`template-2.tmp`, `Timelines/<id>/...`), so
       in-place edits aren't ignored by builds that read the nested copy.
 - [ ] Re-test in CapCut after both: add a new local video and edit a draft in place
       (on a copy).
