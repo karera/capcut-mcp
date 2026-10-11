@@ -51,7 +51,9 @@ Run a security audit before running anything from them.
       setting speed now resizes the clip on the timeline; add_video takes speed into
       account; text segments, which CapCut saves without a source range, no longer
       crash trim/split.) Still to confirm against a clip sped up in CapCut itself.
-- [ ] `read_timeline` should be able to show unsaved session edits.
+- [x] `read_timeline` should be able to show unsaved session edits. (`fromSession`
+      flag in the result; `fromDisk: true` for the saved file. `test/server.test.js`
+      now drives the real server over MCP, ready for future tool tests.)
 - [ ] `validate` should also check that audio files exist.
 - [ ] Warn when the CapCut version differs from the tested one.
 - [ ] Test end to end on a copy of a real project. (Done on disk: CapCut opened and

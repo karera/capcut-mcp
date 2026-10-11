@@ -41,8 +41,8 @@ draft is not the goal. A video someone watches to the end is.
 ## Workflow
 
 1. **Inspect.** `capcut_list_drafts`, then `capcut_read_timeline`. Note canvas,
-   fps, track layout, and segment ids. `read_timeline` reads from disk, so it does
-   not show unsaved session edits; keep your own running notes while editing.
+   fps, track layout, and segment ids. `read_timeline` shows unsaved session edits
+   (`fromSession: true`); pass `fromDisk: true` to compare with the saved file.
 2. **Start from a known-good base.** For a new video, `capcut_clone_draft` from an
    existing draft (use `empty: true` for a clean timeline). Never author draft
    JSON from scratch; cloning is the only reliable way to get valid structure.
