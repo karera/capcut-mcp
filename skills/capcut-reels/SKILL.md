@@ -33,6 +33,7 @@ draft is not the goal. A video someone watches to the end is.
    - Music, voice, levels, sound effects: `references/audio.md`
    - Transitions, effects, filters, text styles: `references/style-library.md`
    - Aspect ratios, lengths, safe zones: `references/platform-specs.md`
+   - Draft file format, media registration, CapCut versions: `references/draft-format.md`
 3. **Write a short edit plan** and show it to the user before building: the hook,
    the sequence of beats with rough timings, text lines, music choice, and which
    style-library effects you'll use. Editing is taste. Confirming the plan first

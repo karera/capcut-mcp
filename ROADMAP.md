@@ -34,6 +34,8 @@ Kept outside this repo in `E:\reference\` (only `capcut-edit` is cloned so far):
   safe zones, learning style from examples, and its lessons file.
 - HyperFrames (heygen-com): renders graphics written as HTML into video. Windows
   support is unconfirmed; test before relying on it.
+- capcut-cli (renezander030), at `E:\reference\capcut-cli`: the most complete public
+  notes on the draft format (`docs/draft-schema/`, `docs/version-support.md`).
 - burnshall-ui/capcut-mcp (Elixir): safety ideas such as schema-version warnings
   and path checks.
 
@@ -59,8 +61,18 @@ Run a security audit before running anything from them.
       draft format 187.0.0, in `TESTED` in `src/core.js`; bump it after re-testing.)
 - [ ] Test end to end on a copy of a real project. (Done on disk: CapCut opened and
       re-saved `0924 mcp-test` with every edit intact. Waiting on the user's playback check.)
-- [ ] Audit capcut-cli (read only): what it knows about the draft format that we
+- [x] Audit capcut-cli (read only): what it knows about the draft format that we
       don't (keyframes, alpha clips, text styling). Write the findings into the skill.
+      (`skills/capcut-reels/references/draft-format.md`. Safe to read: MIT, no runtime
+      dependencies, commands run without a shell. It confirmed the speed rule and
+      found the two gaps below.)
+- [ ] Register added media in `draft_meta_info.json` (`draft_materials` +
+      `local_material_id`); without it CapCut 9.1+ shows new clips as inaccessible.
+      Local audio: `extract_music`, no library `music_id`.
+- [ ] Save every timeline mirror (`template-2.tmp`, `Timelines/<id>/...`), so
+      in-place edits aren't ignored by builds that read the nested copy.
+- [ ] Re-test in CapCut after both: add a new local video and edit a draft in place
+      (on a copy).
 
 ## Phase 2: smart cutting and captions
 
