@@ -90,9 +90,11 @@ risk corrupting the draft just to avoid writing a note.
 - Effects, transitions, animations, and rich text are best-effort through
   `capcut_raw_patch`. Only copy them from the user's style library draft; never
   invent effect ids, because they differ between CapCut versions.
-- Speed changes: the server may set source duration equal to timeline duration on
-  trimmed or split clips. For sped-up clips (timelapses especially), verify timing
-  in CapCut and mention it in the finishing notes until this is fixed.
+- Speed: setting `speed` keeps the footage and changes the clip's length on the
+  timeline (2x on a 10 s clip makes it 5 s), so check what comes after it for overlaps.
+  `durSec` is always the length on the timeline. The rule (footage = timeline length x
+  speed) hasn't been checked against a clip sped up in CapCut itself yet, so verify
+  timelapse timing in CapCut and mention it in the finishing notes.
 - Times at the tool boundary are in seconds. Never pass microseconds.
 - Higher `render_index` / `track_render_index` draws on top. Text above b-roll
   above main footage.

@@ -85,6 +85,61 @@ test('cloned draft gets its own name, id and folder in the meta file, and no loc
   fs.rmSync(path.join(drafts, 'd1', '.locked'));
 });
 
+// a draft shaped like CapCut saves it: video with a speed material, text with source_timerange null
+function speedDraft(name) {
+  const c = { duration: 10e6, materials: { videos: [{ id: 'V', type: 'video', path: '' }], speeds: [{ id: 'SP', speed: 1 }], texts: [{ id: 'T', content: '{"text":"hi"}' }] },
+    tracks: [
+      { id: 'TV', type: 'video', segments: [{ id: 'clip', material_id: 'V', speed: 1, extra_material_refs: ['SP'], target_timerange: { start: 0, duration: 10e6 }, source_timerange: { start: 0, duration: 10e6 } }] },
+      { id: 'TT', type: 'text', segments: [{ id: 'cap', material_id: 'T', speed: 1, extra_material_refs: [], target_timerange: { start: 0, duration: 4e6 }, source_timerange: null }] },
+    ] };
+  fs.mkdirSync(path.join(drafts, name));
+  fs.writeFileSync(path.join(drafts, name, 'draft_content.json'), JSON.stringify(c));
+  return new CapCutDraft(name);
+}
+const seg = (d, id) => d.content.tracks.flatMap(t => t.segments).find(s => s.id === id);
+
+test('speed: setting it changes timeline length, keeps the source footage', () => {
+  const d = speedDraft('speed-set');
+  d.setProps('clip', { speed: 2 });
+  assert.equal(seg(d, 'clip').target_timerange.duration, 5e6);
+  assert.equal(seg(d, 'clip').source_timerange.duration, 10e6);
+  assert.equal(d.content.materials.speeds[0].speed, 2);
+  assert.equal(d.content.duration, 5e6);
+  assert.throws(() => d.setProps('clip', { speed: 0 }), /speed must be > 0/);
+});
+
+test('speed: trim and split of a sped-up clip use source = timeline x speed', () => {
+  const d = speedDraft('speed-cut');
+  d.setProps('clip', { speed: 2 });                     // 5s on the timeline, 10s of footage
+  d.trimSegment('clip', { durUs: 3e6 });
+  assert.deepEqual(seg(d, 'clip').source_timerange, { start: 0, duration: 6e6 });
+  d.trimSegment('clip', { durUs: 5e6, srcStartUs: 1e6 });
+  const { right } = d.splitSegment('clip', 2e6);
+  assert.deepEqual(seg(d, 'clip').target_timerange, { start: 0, duration: 2e6 });
+  assert.deepEqual(seg(d, 'clip').source_timerange, { start: 1e6, duration: 4e6 });
+  assert.deepEqual(seg(d, right).target_timerange, { start: 2e6, duration: 3e6 });
+  assert.deepEqual(seg(d, right).source_timerange, { start: 5e6, duration: 6e6 });
+});
+
+test('speed: add_video with a speed sizes the timeline from the footage', () => {
+  const d = speedDraft('speed-add');
+  const f = path.join(root, 'speed-add.mp4');
+  fs.writeFileSync(f, '');
+  const { segmentId } = d.addVideo(f, { atUs: 10e6, durUs: 4e6, speed: 2 });
+  assert.equal(seg(d, segmentId).target_timerange.duration, 4e6);
+  assert.equal(seg(d, segmentId).source_timerange.duration, 8e6);
+  assert.equal(seg(d, segmentId).speed, 2);
+});
+
+test('text segments with no source range can be trimmed and split', () => {
+  const d = speedDraft('text-null');
+  d.trimSegment('cap', { durUs: 3e6 });
+  const { right } = d.splitSegment('cap', 1e6);
+  assert.equal(seg(d, 'cap').target_timerange.duration, 1e6);
+  assert.equal(seg(d, right).target_timerange.duration, 2e6);
+  assert.equal(seg(d, right).source_timerange, null);
+});
+
 test('raw_patch with __proto__ / constructor / prototype does not pollute objects', () => {
   const d = new CapCutDraft('d1');
   const patch = JSON.parse('{"__proto__":{"polluted":1},"materials":{"__proto__":{"polluted":2},"constructor":{"prototype":{"polluted":3}}},"fine":1}');

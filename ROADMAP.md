@@ -47,7 +47,10 @@ Run a security audit before running anything from them.
 - [ ] Merge the `audio-template-fix` branch (CapCut library music works as the audio
       template; cloned drafts get their own name, id and folder). Waiting on a check
       in CapCut that the `0924 mcp-test` copy opens and plays.
-- [ ] Fix the speed bug: trim and split must account for clip speed.
+- [x] Fix the speed bug: trim and split must account for clip speed. (Also fixed:
+      setting speed now resizes the clip on the timeline; add_video takes speed into
+      account; text segments, which CapCut saves without a source range, no longer
+      crash trim/split.) Still to confirm against a clip sped up in CapCut itself.
 - [ ] `read_timeline` should be able to show unsaved session edits.
 - [ ] `validate` should also check that audio files exist.
 - [ ] Warn when the CapCut version differs from the tested one.

@@ -153,19 +153,22 @@ export class CapCutDraft {
     const tplType = kind === 'image' ? (this.templates().image ? 'image' : 'video') : kind;
     const tpl = this.templates()[tplType] || this.templates().video;
     if (!tpl) throw new Error(`no ${kind} template available`);
-    const dur = opts.durUs != null ? opts.durUs : probeDur(file);
+    const mediaDur = probeDur(file), speed = opts.speed || 1, srcStart = opts.srcStartUs || 0;
+    // durUs is timeline length; without it, use the rest of the media from srcStart
+    const srcDur = opts.durUs != null ? Math.round(opts.durUs * speed) : Math.max(0, mediaDur - srcStart);
     const mat = clone(tpl.mat); mat.id = uid(); mat.path = file.replace(/\\/g, '/'); mat.material_name = path.basename(file); mat.type = type;
     if (kind !== 'audio') { const { w, h } = probeWH(file); mat.width = w; mat.height = h; }
-    mat.duration = kind === 'audio' ? probeDur(file) : (mat.duration || probeDur(file));
+    if (kind !== 'image') mat.duration = mediaDur;        // images keep CapCut's long still-image duration
     ['local_material_id', 'origin_material_id', 'local_id', 'request_id', 'aigc_history_id', 'aigc_item_id'].forEach(k => { if (k in mat) mat[k] = ''; });
     const matKey = kind === 'audio' ? 'audios' : (kind === 'image' ? 'videos' : 'videos'); // CapCut stores images in videos[]
     this._mats(matKey).push(mat);
     const refs = tpl.refs.map(({ k, m }) => { const c = clone(m); c.id = uid(); this._mats(k).push(c); return c.id; });
     const seg = clone(tpl.seg); seg.id = uid(); seg.material_id = mat.id; seg.extra_material_refs = refs;
     const at = opts.atUs || 0;
-    seg.target_timerange = { start: at, duration: dur };
-    seg.source_timerange = { start: opts.srcStartUs || 0, duration: dur };
-    this._applyProps(seg, opts);
+    seg.source_timerange = { start: srcStart, duration: srcDur };
+    seg.target_timerange = { start: at, duration: srcDur };
+    this._applyProps(seg, { ...opts, speed });           // always set: resets a sped-up template; sizes the timeline
+    const dur = seg.target_timerange.duration;
     seg.render_index = this._nextRender();
     const track = this._resolveTrack(opts, kind === 'audio' ? 'audio' : 'video');
     seg.track_render_index = opts.trackRenderIndex != null ? opts.trackRenderIndex : (this.content.tracks.indexOf(track));
@@ -217,11 +220,12 @@ export class CapCutDraft {
     if (newTrackIndex != null && this.content.tracks[newTrackIndex]) { tr.segments = tr.segments.filter(x => x.id !== segId); this.content.tracks[newTrackIndex].segments.push(s); }
     this._recalcDuration(); return { segmentId: segId, atSec: atUs / US, durSec: dur / US };
   }
+  // timeline time -> source time is x speed. Text segments have no source_timerange (CapCut saves null).
   trimSegment(segId, { atUs, durUs, srcStartUs } = {}) {
-    const { s } = this._find(segId);
+    const { s } = this._find(segId), src = s.source_timerange;
     if (atUs != null) s.target_timerange.start = atUs;
-    if (durUs != null) { s.target_timerange.duration = durUs; s.source_timerange.duration = durUs; }
-    if (srcStartUs != null) s.source_timerange.start = srcStartUs;
+    if (durUs != null) { s.target_timerange.duration = durUs; if (src) src.duration = Math.round(durUs * (s.speed || 1)); }
+    if (srcStartUs != null && src) src.start = srcStartUs;
     this._recalcDuration(); return { segmentId: segId };
   }
   splitSegment(segId, atUs) {
@@ -232,15 +236,20 @@ export class CapCutDraft {
     const right = clone(s); right.id = uid();
     // clone extra_material_refs so the two halves don't share state
     right.extra_material_refs = (s.extra_material_refs || []).map(id => { const [k, m] = findMat(this.content, id); if (!m) return id; const c = clone(m); c.id = uid(); this._mats(k).push(c); return c.id; });
-    s.target_timerange.duration = left; s.source_timerange.duration = left;
+    s.target_timerange.duration = left;
     right.target_timerange = { start: atUs, duration: d - left };
-    right.source_timerange = { start: (s.source_timerange.start || 0) + left, duration: d - left };
+    const src = s.source_timerange;
+    if (src) {                                           // halves add up to the original source exactly
+      const total = src.duration, leftSrc = Math.round(left * (s.speed || 1));
+      src.duration = leftSrc;
+      right.source_timerange = { start: (src.start || 0) + leftSrc, duration: total - leftSrc };
+    }
     right.render_index = this._nextRender();
     tr.segments.push(right);
     return { left: segId, right: right.id };
   }
   deleteSegment(segId) { const { tr } = this._find(segId); tr.segments = tr.segments.filter(x => x.id !== segId); this._recalcDuration(); return { deleted: segId }; }
-  setProps(segId, props = {}) { const { s } = this._find(segId); this._applyProps(s, props); return { segmentId: segId, applied: Object.keys(props) }; }
+  setProps(segId, props = {}) { const { s } = this._find(segId); this._applyProps(s, props); this._recalcDuration(); return { segmentId: segId, applied: Object.keys(props), durSec: s.target_timerange.duration / US }; }
   _applyProps(seg, p) {
     seg.clip = seg.clip || { alpha: 1, flip: { horizontal: false, vertical: false }, rotation: 0, scale: { x: 1, y: 1 }, transform: { x: 0, y: 0 } };
     if (p.scale != null) { seg.clip.scale = { x: p.scale, y: p.scale }; }
@@ -252,6 +261,9 @@ export class CapCutDraft {
     if (p.opacity != null) seg.clip.alpha = p.opacity;
     if (p.volume != null) seg.volume = p.volume;
     if (p.visible != null) seg.visible = p.visible;
+    if (p.speed != null && !(p.speed > 0)) throw new Error(`speed must be > 0, got ${p.speed}`);
+    // speed keeps the source footage and changes the clip's length on the timeline, like CapCut
+    if (p.speed != null && seg.source_timerange) seg.target_timerange.duration = Math.round(seg.source_timerange.duration / p.speed);
     if (p.speed != null) { seg.speed = p.speed; const spId = (seg.extra_material_refs || []).find(id => findMat(this.content, id)[0] === 'speeds'); if (spId) { const [, sp] = findMat(this.content, spId); if (sp) sp.speed = p.speed; } }
   }
   _recalcDuration() { let max = 0; for (const tr of this.content.tracks) for (const s of (tr.segments || [])) max = Math.max(max, s.target_timerange.start + s.target_timerange.duration); this.content.duration = max; }
