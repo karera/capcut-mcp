@@ -46,9 +46,8 @@ Run a security audit before running anything from them.
 
 - [x] Finish and merge the `security-hardening` branch (draft-name path check,
       ffprobe without a shell, raw_patch key guard, remove author defaults, tests).
-- [ ] Merge the `audio-template-fix` branch (CapCut library music works as the audio
-      template; cloned drafts get their own name, id and folder). Waiting on a check
-      in CapCut that the `0924 mcp-test` copy opens and plays.
+- [x] Merge the `audio-template-fix` branch (CapCut library music works as the audio
+      template; cloned drafts get their own name, id and folder).
 - [x] Fix the speed bug: trim and split must account for clip speed. (Also fixed:
       setting speed now resizes the clip on the timeline; add_video takes speed into
       account; text segments, which CapCut saves without a source range, no longer
@@ -59,8 +58,8 @@ Run a security audit before running anything from them.
 - [x] `validate` should also check that audio files exist.
 - [x] Warn when the CapCut version differs from the tested one. (Tested: CapCut 9.5.0,
       draft format 187.0.0, in `TESTED` in `src/core.js`; bump it after re-testing.)
-- [ ] Test end to end on a copy of a real project. (Done on disk: CapCut opened and
-      re-saved `0924 mcp-test` with every edit intact. Waiting on the user's playback check.)
+- [x] Test end to end on a copy of a real project. (`0924 mcp-test`: trim, retime,
+      split, caption and music; the user confirmed playback and audible music.)
 - [x] Audit capcut-cli (read only): what it knows about the draft format that we
       don't (keyframes, alpha clips, text styling). Write the findings into the skill.
       (`skills/capcut-reels/references/draft-format.md`. Safe to read: MIT, no runtime
@@ -74,10 +73,9 @@ Run a security audit before running anything from them.
 - [x] `validate` false alarms: it flagged CapCut's own habits (identical duplicate
       materials, `render_index` shared across overlapping tracks) as errors. Now a
       warning and not checked, respectively; every real draft validates clean.
-- [ ] Re-test in CapCut after both: add a new local video and edit a draft in place
-      (on a copy). (Written 2026-10-11 to `0924 mcp-test`: `IMG_E0505.MOV` + an
-      "in-place edit" caption at 54.6 s, all 4 timeline copies updated. Waiting on the
-      user's check in CapCut.)
+- [x] Re-test in CapCut after both: add a new local video and edit a draft in place
+      (on a copy). (2026-10-12: the user confirmed in CapCut that `IMG_E0505.MOV`
+      plays, the "in-place edit" caption shows, and the earlier edits survived.)
 
 ## Phase 2: smart cutting and captions
 
